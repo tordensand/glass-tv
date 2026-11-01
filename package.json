@@ -1,0 +1,9 @@
+{
+  "name": "glass-tv-launcher",
+  "version": "1.0.0",
+  "description": "Apple TV-inspirert startskjerm med glass-effekt for Samsung Tizen-TV",
+  "packageType": "app",
+  "appName": "Glass TV",
+  "appPath": "app/index.html",
+  "keys": ["ColorF0Red", "ColorF1Green", "ColorF2Yellow", "ColorF3Blue"]
+}
