@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, initial-scale=1">
+<title>Glass TV Launcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@500;600;700;800&display=swap">
+<style>
+/*
+  Glass TV: 1920x1080 stage scaled to the window. Glass clock top-left, settings
+  button top-right, big glass top shelf, scrolling row of square glass tiles.
+  Backgrounds are painted on a canvas (works offline). No CSS variables and no
+  backdrop-filter: the 2017 Samsung engine (Chromium 47) supports neither.
+*/
+html, body { height: 100%; }
+body {
+  margin: 0; background: #9fc9f0; color: #ffffff;
+  font-family: "Nunito", "Samsung One", "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+#fit { position: relative; width: 100%; height: 100%; overflow: hidden; background: #9fc9f0; }
+#stage {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+  -webkit-transform-origin: 0 0; transform-origin: 0 0; overflow: hidden;
+}
+#wall { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+.veil {
+  position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(10,25,60,.22) 0%, rgba(10,25,60,0) 30%, rgba(10,25,60,0) 55%, rgba(10,25,60,.28) 100%);
+}
+.txt { text-shadow: 0 2px 14px rgba(10,30,70,.28); }
+
+.glass {
+  position: relative; overflow: hidden;
+  background: linear-gradient(160deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,.14) 40%, rgba(255,255,255,.10) 75%, rgba(255,255,255,.20) 100%);
+  border: 1.5px solid rgba(255,255,255,.5);
+  box-shadow:
+    inset 1.5px 2px 0 rgba(255,255,255,.75),
+    inset -1px -1.5px 0 rgba(255,255,255,.25),
+    0 20px 50px rgba(15,35,80,.18);
+}
+.glass:after {
+  content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+  border-radius: inherit; pointer-events: none;
+  background: linear-gradient(125deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 22%, rgba(255,255,255,0) 80%, rgba(255,255,255,.15) 100%);
+}
+
+.clockcap {
+  position: absolute; left: 96px; top: 56px; border-radius: 999px;
+  padding: 16px 44px 18px;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+}
+.clock {
+  font-family: "Fredoka", "Nunito", Arial, sans-serif;
+  font-size: 80px; font-weight: 500; line-height: 1; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,.72) 60%, #ffffff 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+}
+.date { font-size: 26px; font-weight: 700; margin-left: 28px; color: rgba(255,255,255,.92); }
+.gear {
+  position: absolute; right: 96px; top: 62px;
+  width: 96px; height: 96px; border-radius: 50%; cursor: pointer;
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  -webkit-transition: -webkit-transform .2s ease; transition: transform .2s ease;
+}
+.gear svg { width: 46px; height: 46px; }
+.gear.focus, .opt.focus {
+  -webkit-transform: scale(1.12); transform: scale(1.12);
+  border-color: rgba(255,255,255,.95);
+  box-shadow: inset 1.5px 2px 0 rgba(255,255,255,.9), 0 0 0 4px rgba(255,255,255,.35), 0 26px 60px rgba(15,35,80,.3);
+}
+.where { position: absolute; right: 216px; top: 86px; font-size: 22px; font-weight: 700; color: rgba(255,255,255,.9); }
+
+.shelf {
+  position: absolute; left: 96px; right: 96px; top: 216px; height: 420px;
+  border-radius: 56px; padding: 64px 72px; box-sizing: border-box;
+}
+.eyebrow { font-size: 21px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,.82); }
+.shelf h1 {
+  margin: 20px 0 0; font-family: "Fredoka", "Nunito", Arial, sans-serif;
+  font-size: 100px; font-weight: 600; line-height: 1; letter-spacing: -1px;
+}
+.shelf p { margin: 26px 0 0; font-size: 30px; font-weight: 600; line-height: 1.45; max-width: 900px; color: rgba(255,255,255,.9); }
+.hint { position: absolute; left: 72px; bottom: 52px; font-size: 21px; font-weight: 700; color: rgba(255,255,255,.8); }
+.hint b {
+  display: inline-block; padding: 5px 14px; margin-right: 10px; border-radius: 12px;
+  border: 1.5px solid rgba(255,255,255,.55); background: rgba(255,255,255,.18); color: #ffffff;
+}
+.art {
+  position: absolute; right: 80px; top: 52px; width: 316px; height: 316px; border-radius: 76px;
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+}
+.art svg, .art img { width: 130px; height: 130px; }
+
+.row-title { position: absolute; left: 96px; top: 682px; font-size: 25px; font-weight: 800; color: rgba(255,255,255,.92); }
+.rowwrap { position: absolute; left: 0; right: 0; top: 720px; height: 360px; overflow: hidden; }
+.row {
+  position: absolute; left: 96px; top: 34px; display: -webkit-flex; display: flex;
+  -webkit-transition: -webkit-transform .35s ease; transition: transform .35s ease;
+}
+.tile {
+  width: 200px; height: 200px; margin-right: 44px; border-radius: 52px; cursor: pointer;
+  overflow: visible;
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  -webkit-transition: -webkit-transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease;
+}
+.tile .ico { width: 78px; height: 78px; }
+.tile .ico svg, .tile .ico img { width: 100%; height: 100%; display: block; }
+.tile .name {
+  position: absolute; left: -20px; right: -20px; bottom: -52px; text-align: center;
+  font-size: 23px; font-weight: 800; color: rgba(255,255,255,0);
+  -webkit-transition: color .22s ease; transition: color .22s ease;
+}
+.tile.focus {
+  -webkit-transform: translateY(-12px) scale(1.14); transform: translateY(-12px) scale(1.14);
+  border-color: rgba(255,255,255,.95);
+  box-shadow: inset 1.5px 2px 0 rgba(255,255,255,.95), 0 0 0 4px rgba(255,255,255,.3), 0 34px 70px rgba(15,35,80,.32);
+}
+.tile.focus .name { color: #ffffff; }
+.tile.press { -webkit-transform: translateY(-5px) scale(1.05); transform: translateY(-5px) scale(1.05); }
+
+.scrim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(10,25,60,.35); }
+.sheet {
+  position: absolute; left: 160px; right: 160px; top: 150px; height: 780px;
+  border-radius: 60px; padding: 56px 64px; box-sizing: border-box;
+  background: linear-gradient(160deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.30) 100%);
+}
+.sheet h2 { margin: 0; font-family: "Fredoka", "Nunito", Arial, sans-serif; font-size: 60px; font-weight: 600; }
+.sheet .sub { margin-top: 8px; font-size: 25px; font-weight: 700; color: rgba(255,255,255,.88); }
+.grid { margin-top: 40px; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+.opt {
+  width: 272px; margin: 0 28px 34px 0; border-radius: 34px; padding: 12px; box-sizing: border-box; cursor: pointer;
+  -webkit-transition: -webkit-transform .2s ease; transition: transform .2s ease;
+}
+.opt:nth-child(5n) { margin-right: 0; }
+.opt canvas { display: block; width: 248px; height: 140px; border-radius: 24px; }
+.opt .lbl { padding: 12px 6px 4px; font-size: 24px; font-weight: 800; }
+.opt .on {
+  position: absolute; right: 22px; top: 22px; width: 36px; height: 36px; border-radius: 50%;
+  background: #ffffff; color: #2a5bd7; font-size: 24px; font-weight: 800; line-height: 36px; text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="stage">
+    <canvas id="wall" width="1920" height="1080"></canvas>
+    <div class="veil"></div>
+
+    <div class="clockcap glass">
+      <div class="clock" id="clock">00:00</div>
+      <div class="date txt" id="date"></div>
+    </div>
+    <div class="where txt" id="where"></div>
+    <div class="gear glass" id="gear" title="Innstillinger">
+      <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="7" fill="none" stroke="#ffffff" stroke-width="3.5"/><path d="M24 5v6M24 37v6M5 24h6M37 24h6M10.6 10.6l4.2 4.2M33.2 33.2l4.2 4.2M10.6 37.4l4.2-4.2M33.2 14.8l4.2-4.2" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/></svg>
+    </div>
+
+    <div class="shelf glass">
+      <div class="eyebrow txt" id="eyebrow"></div>
+      <h1 class="txt" id="title"></h1>
+      <p class="txt" id="desc"></p>
+      <div class="art glass" id="art"></div>
+      <div class="hint txt"><b>OK</b>Åpne &nbsp;&nbsp; <b>▲</b>Innstillinger</div>
+    </div>
+
+    <div class="row-title txt">Dine apper</div>
+    <div class="rowwrap"><div class="row" id="row"></div></div>
+
+    <div id="settings" hidden>
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet glass">
+        <h2 class="txt">Bakgrunn</h2>
+        <div class="sub txt">Auto bytter selv etter årstid og høytid.</div>
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  /* ================= painted backgrounds ================= */
+  function rnd(seed) { var s = seed; return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+  function sky(c, w, h, stops) {
+    var g = c.createLinearGradient(0, 0, 0, h);
+    for (var i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1]);
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+  }
+  function glow(c, x, y, r, col) {
+    var g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, col); g.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+  }
+  function hill(c, w, h, base, amp, f, ph, col) {
+    c.beginPath(); c.moveTo(0, h);
+    for (var x = 0; x <= w; x += w / 60) {
+      var t = x / w;
+      c.lineTo(x, h * base - h * amp * (Math.sin(t * f * 6.283 + ph) * .6 + Math.sin(t * f * 2.7 * 6.283 + ph * 2) * .4));
+    }
+    c.lineTo(w, h); c.closePath(); c.fillStyle = col; c.fill();
+  }
+  function dots(c, w, h, n, cols, r0, r1, seed, ymax) {
+    var R = rnd(seed);
+    for (var i = 0; i < n; i++) {
+      c.beginPath();
+      c.arc(R() * w, R() * h * (ymax || 1), (r0 + R() * (r1 - r0)) * w / 1920, 0, 6.283);
+      c.fillStyle = cols[i % cols.length]; c.fill();
+    }
+  }
+  function pine(c, x, y, s, col) {
+    c.fillStyle = col;
+    for (var i = 0; i < 3; i++) {
+      c.beginPath();
+      c.moveTo(x, y - s * (1 - i * .28));
+      c.lineTo(x - s * (.28 + i * .07), y - s * (.45 - i * .2));
+      c.lineTo(x + s * (.28 + i * .07), y - s * (.45 - i * .2));
+      c.closePath(); c.fill();
+    }
+  }
+  function burst(c, x, y, r, col, soft) {
+    c.strokeStyle = col; c.lineWidth = r * .04; c.lineCap = "round";
+    for (var a = 0; a < 18; a++) {
+      var t = a / 18 * 6.283;
+      c.beginPath();
+      c.moveTo(x + Math.cos(t) * r * .25, y + Math.sin(t) * r * .25);
+      c.lineTo(x + Math.cos(t) * r, y + Math.sin(t) * r);
+      c.stroke();
+    }
+    glow(c, x, y, r * 1.3, soft);
+  }
+  function ornaments(c, x, y, s, k) {
+    var R = rnd(k + 40), cols = ["#ffd36b", "#ff6b7a", "#ffffff"];
+    for (var i = 0; i < 7; i++) {
+      c.beginPath();
+      c.arc(x + (R() - .5) * s * .4, y - s * (.15 + R() * .65), s * .025, 0, 6.283);
+      c.fillStyle = cols[i % 3]; c.fill();
+    }
+  }
+
+  var scenes = {
+    vinter: { n: "Vinter", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#7fbff5"], [.55, "#cfe7ff"], [1, "#ffffff"]]);
+      glow(c, w * .72, h * .28, w * .3, "rgba(255,250,235,.9)");
+      hill(c, w, h, .62, .06, 1.2, 1, "#d9ebfb");
+      for (var i = 0; i < 14; i++) pine(c, w * (.05 + i * .07), h * (.66 + (i % 3) * .02), h * .14, "rgba(70,120,170,.55)");
+      hill(c, w, h, .78, .05, 1.6, 3, "#eef6ff");
+      hill(c, w, h, .9, .04, 1, 5, "#ffffff");
+      dots(c, w, h, 160, ["rgba(255,255,255,.9)"], 2, 6, 7);
+    }},
+    vaar: { n: "Vår", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#ff9ec7"], [.5, "#ffd3e4"], [1, "#c8f3dd"]]);
+      glow(c, w * .3, h * .25, w * .35, "rgba(255,245,210,.85)");
+      hill(c, w, h, .7, .06, 1.1, 2, "#9fe3ae");
+      hill(c, w, h, .82, .05, 1.5, 4, "#6fd08f");
+      hill(c, w, h, .93, .04, 1, 1, "#4fbf7a");
+      dots(c, w, h, 120, ["rgba(255,170,205,.9)", "rgba(255,255,255,.9)", "rgba(255,210,120,.9)"], 3, 9, 11);
+    }},
+    sommer: { n: "Sommer", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#1f9cff"], [.45, "#79ccff"], [.68, "#ffe7a3"], [1, "#ffcf7a"]]);
+      glow(c, w * .5, h * .58, w * .4, "rgba(255,245,190,.95)");
+      c.fillStyle = "#1688e0"; c.fillRect(0, h * .66, w, h * .12);
+      glow(c, w * .5, h * .7, w * .2, "rgba(255,255,255,.5)");
+      hill(c, w, h, .82, .03, 1, 1, "#ffd98c");
+      hill(c, w, h, .93, .03, 1.4, 3, "#ffc96a");
+    }},
+    hoest: { n: "Høst", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#ff8a4c"], [.5, "#ffc27a"], [1, "#ffe6bf"]]);
+      glow(c, w * .7, h * .35, w * .35, "rgba(255,240,200,.9)");
+      hill(c, w, h, .64, .07, 1.2, 1, "#f09a52");
+      hill(c, w, h, .78, .06, 1.6, 3, "#dd6f34");
+      hill(c, w, h, .92, .04, 1, 5, "#bf532a");
+      dots(c, w, h, 110, ["rgba(255,140,60,.95)", "rgba(255,205,90,.95)", "rgba(220,80,40,.9)"], 4, 10, 23);
+    }},
+    jul: { n: "Jul", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#2f5fd0"], [.55, "#7fa6f0"], [1, "#d6e4ff"]]);
+      dots(c, w, h, 90, ["rgba(255,255,255,.9)"], 1.5, 3.5, 3, .5);
+      glow(c, w * .2, h * .2, w * .25, "rgba(255,235,190,.5)");
+      hill(c, w, h, .7, .05, 1.1, 2, "#e4edff");
+      for (var i = 0; i < 9; i++) {
+        var x = w * (.08 + i * .105), y = h * (.8 + (i % 2) * .03), s = h * (.2 + (i % 3) * .05);
+        pine(c, x, y, s, "#1f7a5c");
+        ornaments(c, x, y, s, i);
+      }
+      hill(c, w, h, .92, .03, 1.3, 4, "#ffffff");
+      dots(c, w, h, 140, ["rgba(255,255,255,.95)"], 2, 5, 9);
+    }},
+    nyttaar: { n: "Nyttår", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#4a2fd0"], [.55, "#a04fe0"], [1, "#ff8fc0"]]);
+      burst(c, w * .22, h * .3, h * .17, "rgba(255,215,110,.95)", "rgba(255,215,110,.25)");
+      burst(c, w * .55, h * .2, h * .13, "rgba(120,240,255,.95)", "rgba(120,240,255,.25)");
+      burst(c, w * .8, h * .34, h * .19, "rgba(255,130,200,.95)", "rgba(255,130,200,.25)");
+      burst(c, w * .4, h * .45, h * .09, "rgba(255,255,255,.95)", "rgba(255,255,255,.25)");
+      hill(c, w, h, .86, .03, 1.2, 2, "rgba(60,30,140,.55)");
+      hill(c, w, h, .94, .02, 1.6, 4, "rgba(40,20,110,.6)");
+    }},
+    paaske: { n: "Påske", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#ffd84a"], [.5, "#fff0a8"], [1, "#d9f4ff"]]);
+      glow(c, w * .5, h * .3, w * .4, "rgba(255,255,255,.8)");
+      hill(c, w, h, .72, .06, 1.1, 1, "#bfeb8a");
+      hill(c, w, h, .86, .05, 1.4, 3, "#98da6a");
+      var cols = ["#ff9ec7", "#8fd3ff", "#ffd36b", "#b49cff", "#7fe0b0"], R = rnd(5);
+      for (var i = 0; i < 12; i++) {
+        c.save(); c.translate(w * (.06 + i * .08), h * (.9 + R() * .04)); c.rotate((R() - .5) * .5);
+        c.beginPath(); c.scale(1, 1.3); c.arc(0, 0, h * .028, 0, 6.283);
+        c.fillStyle = cols[i % 5]; c.fill(); c.restore();
+      }
+    }},
+    mai17: { n: "17. mai", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#5fb6ff"], [.6, "#bfe4ff"], [1, "#f2fbff"]]);
+      glow(c, w * .8, h * .2, w * .3, "rgba(255,255,240,.9)");
+      var cols = ["#e8323c", "#ffffff", "#1f4fb4"];
+      for (var r = 0; r < 2; r++) {
+        var y0 = h * (.12 + r * .14), sag = h * .08;
+        c.strokeStyle = "rgba(255,255,255,.8)"; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(0, y0); c.quadraticCurveTo(w / 2, y0 + sag * 2, w, y0); c.stroke();
+        for (var i = 0; i < 24; i++) {
+          var t = (i + .5) / 24, x = t * w, y = y0 + sag * 4 * t * (1 - t);
+          c.beginPath(); c.moveTo(x - w * .015, y); c.lineTo(x + w * .015, y); c.lineTo(x, y + h * .05); c.closePath();
+          c.fillStyle = cols[(i + r) % 3]; c.fill();
+        }
+      }
+      hill(c, w, h, .78, .05, 1.2, 2, "#8fdc8a");
+      hill(c, w, h, .9, .04, 1.5, 4, "#62c46a");
+    }},
+    halloween: { n: "Halloween", p: function (c, w, h) {
+      sky(c, w, h, [[0, "#6a3fd0"], [.5, "#e0609a"], [1, "#ffa04f"]]);
+      glow(c, w * .72, h * .3, w * .22, "rgba(255,240,200,.9)");
+      c.beginPath(); c.arc(w * .72, h * .3, h * .13, 0, 6.283); c.fillStyle = "#fff1c9"; c.fill();
+      hill(c, w, h, .78, .05, 1.2, 2, "#7a3fb0");
+      hill(c, w, h, .9, .04, 1.6, 4, "#5a2b8f");
+      for (var i = 0; i < 6; i++) {
+        var x = w * (.1 + i * .16), y = h * (.92 - (i % 2) * .02), r = h * (.035 + (i % 3) * .01);
+        c.save(); c.translate(x, y); c.scale(1.25, 1); c.beginPath(); c.arc(0, 0, r, 0, 6.283);
+        c.fillStyle = "#ff8a2a"; c.fill(); c.restore();
+        c.fillStyle = "#4fae5a"; c.fillRect(x - r * .1, y - r * 1.25, r * .2, r * .35);
+      }
+    }}
+  };
+
+  function easter(y) {
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+        f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+        i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+        mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, mo - 1, da);
+  }
+  function autoScene(d) {
+    var m = d.getMonth() + 1, day = d.getDate();
+    if ((m === 12 && day >= 27) || (m === 1 && day <= 2)) return "nyttaar";
+    if (m === 12) return "jul";
+    if (m === 10 && day >= 24) return "halloween";
+    if (m === 5 && day >= 10 && day <= 17) return "mai17";
+    var diff = (d - easter(d.getFullYear())) / 864e5;
+    if (diff >= -8 && diff <= 1.5) return "paaske";
+    if (m <= 2) return "vinter";
+    if (m <= 5) return "vaar";
+    if (m <= 8) return "sommer";
+    return "hoest";
+  }
+
+  var choice = "auto";
+  try { choice = localStorage.getItem("glass-bg") || "auto"; } catch (e) {}
+  if (choice !== "auto" && !scenes[choice]) choice = "auto";
+  function current() { return choice === "auto" ? autoScene(new Date()) : choice; }
+  function paintWall() {
+    var cv = document.getElementById("wall"), k = current();
+    scenes[k].p(cv.getContext("2d"), cv.width, cv.height);
+    document.getElementById("where").textContent = (choice === "auto" ? "Auto · " : "") + scenes[k].n;
+  }
+
+  /* ================= apps ================= */
+  var I = {
+    play:  '<path d="M23 15 L50 32 L23 49 Z" fill="#ffffff" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>',
+    video: '<rect x="7" y="15" width="50" height="34" rx="11" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M28 25 L40 32 L28 39 Z" fill="#ffffff"/>',
+    tv:    '<rect x="7" y="13" width="50" height="33" rx="9" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M22 53 H42" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>',
+    news:  '<rect x="9" y="11" width="46" height="42" rx="10" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M18 24 H46 M18 32 H46 M18 40 H33" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>',
+    star:  '<path d="M32 9 L38.5 24.5 L55 25.5 L42.5 36 L46.5 52.5 L32 43.5 L17.5 52.5 L21.5 36 L9 25.5 L25.5 24.5 Z" fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>',
+    ball:  '<circle cx="32" cy="32" r="23" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M32 21 L42 28 L38.5 40 H25.5 L22 28 Z" fill="#ffffff"/>',
+    music: '<path d="M26 44 V16 L49 11 V40" fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/><circle cx="20.5" cy="44" r="6.5" fill="#ffffff"/><circle cx="43.5" cy="40" r="6.5" fill="#ffffff"/>',
+    input: '<rect x="8" y="18" width="48" height="28" rx="9" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M20 32 H37 M31 26 L37 32 L31 38" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+  };
+  function svg(k) { return '<svg viewBox="0 0 64 64">' + I[k] + '</svg>'; }
+  var apps = [
+    { n: "Netflix",   i: "play",  k: "Strømming", d: "Fortsett der du slapp.",             match: "netflix" },
+    { n: "YouTube",   i: "video", k: "Video",     d: "Abonnementer, musikk og alt annet.", match: "youtube" },
+    { n: "NRK TV",    i: "tv",    k: "TV",        d: "Direkte-TV og hele arkivet.",        match: "nrk" },
+    { n: "TV 2 Play", i: "news",  k: "TV",        d: "Nyheter, sport og serier.",          match: "tv 2" },
+    { n: "Disney+",   i: "star",  k: "Strømming", d: "Film og serier for hele familien.",  match: "disney" },
+    { n: "Viaplay",   i: "ball",  k: "Sport",     d: "Fotball, F1 og nordiske serier.",    match: "viaplay" },
+    { n: "Spotify",   i: "music", k: "Musikk",    d: "Spillelister rett på storskjermen.", match: "spotify" },
+    { n: "Kilde",     i: "input", k: "Innganger", d: "HDMI, antenne og spillkonsoll.",     match: "" }
+  ];
+  var row = document.getElementById("row"), tiles = [], cur = 0, zone = "row";
+  for (var i = 0; i < apps.length; i++) {
+    var t = document.createElement("div");
+    t.className = "tile glass";
+    t.innerHTML = '<div class="ico">' + svg(apps[i].i) + '</div><div class="name txt"></div>';
+    t.lastChild.textContent = apps[i].n;
+    (function (idx) {
+      t.addEventListener("mouseenter", function () { if (zone === "row") focusTile(idx); });
+      t.addEventListener("click", function () { setZone("row"); focusTile(idx); open(); });
+    })(i);
+    row.appendChild(t); tiles.push(t);
+  }
+
+  function focusTile(i) {
+    if (i < 0) i = 0;
+    if (i > tiles.length - 1) i = tiles.length - 1;
+    tiles[cur].className = "tile glass";
+    cur = i;
+    if (zone === "row") tiles[cur].className = "tile glass focus";
+    var shift = Math.max(0, Math.min(cur - 4, apps.length - 7)) * 244;
+    var tr = "translateX(" + (-shift) + "px)";
+    row.style.webkitTransform = tr; row.style.transform = tr;
+    var a = apps[cur];
+    document.getElementById("title").textContent = a.n;
+    document.getElementById("eyebrow").textContent = a.k;
+    document.getElementById("desc").textContent = a.d;
+    document.getElementById("art").innerHTML = tiles[cur].firstChild.innerHTML;
+  }
+  function open() {
+    var t = tiles[cur], a = apps[cur];
+    t.className = "tile glass focus press";
+    setTimeout(function () { t.className = "tile glass focus"; }, 160);
+    if (!window.tizen) return;
+    try {
+      if (a.appId) tizen.application.launch(a.appId);
+      else if (!a.match) tizen.application.launch("org.tizen.inputselector");
+    } catch (e) {}
+  }
+
+  if (window.tizen && tizen.application && tizen.application.getAppsInfo) {
+    try {
+      tizen.application.getAppsInfo(function (list) {
+        for (var a = 0; a < apps.length; a++) {
+          if (!apps[a].match) continue;
+          for (var j = 0; j < list.length; j++) {
+            if ((list[j].name || "").toLowerCase().indexOf(apps[a].match) !== -1) {
+              apps[a].appId = list[j].id;
+              if (list[j].iconPath) {
+                var holder = tiles[a].firstChild, img = new Image(), keep = holder.innerHTML;
+                (function (h, im, old) {
+                  im.onerror = function () { h.innerHTML = old; h.style.width = ""; h.style.height = ""; focusTile(cur); };
+                })(holder, img, keep);
+                img.src = list[j].iconPath;
+                holder.innerHTML = ""; holder.appendChild(img);
+                holder.style.width = "140px"; holder.style.height = "140px";
+              }
+              break;
+            }
+          }
+        }
+        focusTile(cur);
+      });
+    } catch (e) {}
+  }
+
+  /* ================= settings ================= */
+  var opts = ["auto", "vinter", "vaar", "sommer", "hoest", "jul", "nyttaar", "paaske", "mai17", "halloween"];
+  var grid = document.getElementById("grid"), optEls = [], oc = 0;
+  for (var o = 0; o < opts.length; o++) {
+    var el = document.createElement("div");
+    el.className = "opt glass";
+    var cv = document.createElement("canvas"); cv.width = 496; cv.height = 280;
+    var key = opts[o] === "auto" ? autoScene(new Date()) : opts[o];
+    scenes[key].p(cv.getContext("2d"), 496, 280);
+    var lb = document.createElement("div"); lb.className = "lbl txt";
+    lb.textContent = opts[o] === "auto" ? "Auto" : scenes[opts[o]].n;
+    el.appendChild(cv); el.appendChild(lb);
+    (function (idx) {
+      el.addEventListener("mouseenter", function () { focusOpt(idx); });
+      el.addEventListener("click", function () { focusOpt(idx); pick(); });
+    })(o);
+    grid.appendChild(el); optEls.push(el);
+  }
+  function marks() {
+    for (var i = 0; i < optEls.length; i++) {
+      var m = optEls[i].querySelector(".on");
+      if (opts[i] === choice && !m) { m = document.createElement("div"); m.className = "on"; m.textContent = "✓"; optEls[i].appendChild(m); }
+      if (opts[i] !== choice && m) optEls[i].removeChild(m);
+    }
+  }
+  function focusOpt(i) {
+    if (i < 0 || i >= optEls.length) return;
+    optEls[oc].className = "opt glass"; oc = i; optEls[oc].className = "opt glass focus";
+  }
+  function pick() {
+    choice = opts[oc];
+    try { localStorage.setItem("glass-bg", choice); } catch (e) {}
+    paintWall(); marks();
+  }
+
+  /* ================= focus zones & remote ================= */
+  var gear = document.getElementById("gear"), sett = document.getElementById("settings");
+  function setZone(z) {
+    zone = z;
+    gear.className = "gear glass" + (z === "gear" ? " focus" : "");
+    tiles[cur].className = "tile glass" + (z === "row" ? " focus" : "");
+    sett.hidden = z !== "panel";
+    if (z === "panel") { marks(); focusOpt(Math.max(0, opts.indexOf(choice))); }
+  }
+  gear.addEventListener("click", function () { setZone("panel"); });
+  gear.addEventListener("mouseenter", function () { if (zone !== "panel") setZone("gear"); });
+  document.getElementById("scrim").addEventListener("click", function () { setZone("gear"); });
+
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode, back = (k === 10009 || k === 27 || k === 8);
+    if (zone === "row") {
+      if (k === 37) focusTile(cur - 1);
+      else if (k === 39) focusTile(cur + 1);
+      else if (k === 38) setZone("gear");
+      else if (k === 13) open();
+      else return;
+    } else if (zone === "gear") {
+      if (k === 40 || back) setZone("row");
+      else if (k === 13) setZone("panel");
+      else return;
+    } else {
+      if (k === 37) focusOpt(oc - 1);
+      else if (k === 39) focusOpt(oc + 1);
+      else if (k === 38) focusOpt(oc - 5);
+      else if (k === 40) focusOpt(oc + 5);
+      else if (k === 13) pick();
+      else if (back) setZone("gear");
+      else return;
+    }
+    e.preventDefault();
+  });
+
+  /* ================= clock & scaling ================= */
+  var days = ["søndag","mandag","tirsdag","onsdag","torsdag","fredag","lørdag"];
+  var months = ["januar","februar","mars","april","mai","juni","juli","august","september","oktober","november","desember"];
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  var lastDay = -1;
+  function tick() {
+    var d = new Date();
+    document.getElementById("clock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    document.getElementById("date").textContent = days[d.getDay()] + " " + d.getDate() + ". " + months[d.getMonth()];
+    if (d.getDate() !== lastDay) { lastDay = d.getDate(); paintWall(); }
+  }
+  tick(); setInterval(tick, 10000);
+
+  var fit = document.getElementById("fit"), stage = document.getElementById("stage");
+  function scale() {
+    var w = fit.clientWidth, h = fit.clientHeight, s = Math.min(w / 1920, h / 1080);
+    var tr = "translate(" + (w - 1920 * s) / 2 + "px," + (h - 1080 * s) / 2 + "px) scale(" + s + ")";
+    stage.style.webkitTransform = tr; stage.style.transform = tr;
+  }
+  window.addEventListener("resize", scale);
+  scale();
+  focusTile(0);
+  setZone("row");
+})();
+</script>
+</body>
+</html>
